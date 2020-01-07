@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <style media="screen">
+    body {
+      margin: 0;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="hidden-canvas" width="50" height="50" style="display: none;"></canvas>
+  <script type="text/javascript" src="js/jquery.min.js"></script>
+  <script type="text/javascript" src="js/three.js"></script>
+  <script type="text/javascript" src="emoji/emoji.js"></script>
+  <script type="text/javascript">
+    var canvas = document.getElementById('hidden-canvas');
+    var ctx = canvas.getContext('2d');
+    var SIZE = 50;
+    ctx.font = `${SIZE * 0.8}px sans-serif`;
+
+    function clear() {
+      ctx.fillStyle = 'black';
+      ctx.clearRect(0, 0, SIZE, SIZE);
+    }
+
+    function putChar(c) {
+      clear();
+      ctx.fillStyle = 'white';
+      ctx.fillText(c, 1, SIZE * 0.8);
+    }
+
+    function measure(c) {
+      putChar(c);
+      var imgData = ctx.getImageData(0, 0, SIZE, SIZE);
+      var sum = [0, 0, 0, 0];
+      var pos = 0;
+      for (var i of imgData.data) {
+        if (pos == 3 && i)
+          sum[pos] += 255;
+        else
+          sum[pos] += i;
+        pos++;
+        pos %= 4;
+      }
+      // console.log(sum);
+      return sum;
+    }
+
+    function chineseGrayscale() {
+      var result = [];
+      for (var i = 19968; i <= 40869; i++) {
+        var c = String.fromCharCode(i);
+        result.push([c, measure(c)[0]]);
+      }
+      result.sort(function(a, b) {
+        return a[1] - b[1];
+      });
+      var min_value = result[0][1];
+      var max_value = result[result.length - 1][1];
+      result = result.map(function(a) {
+        return [a[0], a[1] / max_value * 255];
+      });
+      return result;
+    }
+
+    function emojiColor() {
+      var result = [];
+      for (var c of emoji) {
+        result.push([c, measure(c)]);
+      }
+      return result;
+    }
+
+    function randomChinese() {
+      var a = chineseGrayscale();
+      var b = [];
+      for (i = 0; i < 256; i++) b.push([]);
+      for (i of a) {
+        b[Math.floor(i[1])].push(i[0]);
+      }
+      var c = '';
+      for (i = 0; i < 256; i++) {
+        c += (b[i].length ? b[i][Math.floor(Math.random() * b[i].length)] : '　');
+      }
+      return c;
+    }
+
+    // Three.js:
+
+    function init() {
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 2000);
+      camera.position.z = 200;
+      scene = new THREE.Scene();
+      for (var e in emoji) {
+      // for (var e = 0; e < 1000; e++) {
+        var material = createTextMaterial(emoji[e]);
+        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+        var m = measure(emoji[e]);
+        mesh.position.set(m[0] / m[3] * 50, m[1] / m[3] * 50, m[2] / m[3] * 50);
+        console.log(m);
+        // mesh.position.set(Math.random() * 20 - 10, Math.random() * 20 - 10, Math.random() * 20 - 10);
+        scene.add(mesh);
+      }
+      renderer = new THREE.WebGLRenderer({
+        antialias: true
+      });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function createTextMaterial(text) {
+      var $canvas = $('<canvas width="200px" height="200px"></canvas>');
+      var draw_ctx = $canvas[0].getContext('2d');
+      var material = new THREE.MeshBasicMaterial();
+      material.map = new THREE.CanvasTexture($canvas[0]);
+      draw_ctx.fillStyle = 'white';
+      draw_ctx.font = `180px sans-serif`;
+      draw_ctx.fillRect(0, 0, 200, 200);
+      draw_ctx.fillText(text, 10, 170);
+      material.map.needsUpdate = true;
+      return material;
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      camera.rotation.x += 0.01;
+      camera.rotation.y += 0.01;
+      camera.lookAt(0, 0, 0);
+      renderer.render(scene, camera);
+    }
+
+    var camera, scene, renderer;
+    init();
+    animate();
+  </script>
+</body>
+
+</html>

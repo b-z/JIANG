@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <style media="screen">
+    body {
+      margin: 0;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <link rel="stylesheet" href="css/materialize.min.css">
+</head>
+
+<body>
+  <main class="container">
+    <div class="row">
+      <div class="col s12 m8 l8 offset-m2 offset-l2">
+        <form action="#">
+          <div class="file-field input-field">
+            <div class="btn">
+              <input id="file_path" type="file">
+              <span><i class="material-icons">perm_media</i></span>
+            </div>
+            <div class="file-path-wrapper">
+              <input class="file-path validate" type="text" placeholder="UPLOAD IMAGE FILE">
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="row source_image_area">
+      <div class="col s6">
+        <canvas class="materialboxed z-depth-1" id="source_image"></canvas>
+      </div>
+      <div class="col s6">
+        <canvas class="materialboxed z-depth-1" id="target_image"></canvas>
+      </div>
+    </div>
+    <div class="btn" onclick="stop = true;">
+      STOP
+    </div>
+  </main>
+
+  <canvas id="hidden-canvas" width="50" height="50" style="display: none;"></canvas>
+
+  <script type="text/javascript" src="js/jquery.min.js"></script>
+  <script type="text/javascript" src="js/materialize.min.js"></script>
+  <script type="text/javascript" src="emoji/emoji.js"></script>
+  <script type="text/javascript">
+    var canvas = document.getElementById('hidden-canvas');
+    var ctx = canvas.getContext('2d');
+    var SIZE = 50;
+    ctx.font = `${SIZE * 0.8}px sans-serif`;
+    var emoji_color, width, height, img_ctx, target_ctx;
+    var stop = false;
+
+    function clear() {
+      // ctx.fillStyle = 'black';
+      ctx.clearRect(0, 0, SIZE, SIZE);
+    }
+
+    function putChar(c) {
+      ctx.fillStyle = 'white';
+      ctx.fillText(c, 1, SIZE * 0.8);
+    }
+
+    function measure(c) {
+      putChar(c);
+      var imgData = ctx.getImageData(0, 0, SIZE, SIZE);
+      var sum = [0, 0, 0, 0];
+      var pos = 0;
+      for (var i of imgData.data) {
+        if (pos == 3 && i)
+          sum[pos] += 255;
+        else
+          sum[pos] += i;
+        pos++;
+        pos %= 4;
+      }
+      // console.log(sum);
+      return sum;
+    }
+
+    function emojiColor() {
+      emoji_color = [];
+      for (var c of emoji) {
+        emoji_color.push([c, measure(c)]);
+      }
+    }
+
+    function uploadFile(e) {
+      var file = e.target.files[0];
+      var filename = file.name;
+      var reader = new FileReader();
+      reader.onload = putImage2Canvas;
+      reader.readAsDataURL(file);
+    }
+
+    function putImage2Canvas(event) {
+      var img = new Image();
+      img.src = event.target.result;
+      img.onload = function() {
+        var canv = $('#source_image')[0];
+        width = canv.width = img.width;
+        height = canv.height = img.height;
+        img_ctx = canv.getContext('2d');
+        img_ctx.drawImage(img, 0, 0);
+
+        canv = $('#target_image')[0];
+        canv.width = width;
+        canv.height = height;
+        target_ctx = canv.getContext('2d');
+        target_ctx.fillStyle = 'white';
+        target_ctx.fillRect(0, 0, width, height);
+        // img_raw = img_ctx.getImageData(0, 0, img.width, img.height);
+        emojiIt();
+      }
+    }
+
+    function getPixelIndex(x, y) {
+      return (width * y + x) * 4;
+    }
+
+    function distance(img1, img2) {
+      var sum = 0;
+      for (var i = 0; i < img1.length; i += 4) {
+        var d = Math.sqrt(
+          Math.pow(img1[i] - img2[i], 2) +
+          Math.pow(img1[i + 1] - img2[i + 1], 2) +
+          Math.pow(img1[i + 2] - img2[i + 2], 2)
+        );
+        sum += d;
+      }
+      return sum / img1.length / 4;
+    }
+
+    function emojiIt() {
+      // for (var i = 0; i < 5; i++) {
+        // pick a random position
+        var x = Math.floor(Math.random() * (width - SIZE));
+        var y = Math.floor(Math.random() * (height - SIZE));
+
+        var img_raw = img_ctx.getImageData(x, y, SIZE, SIZE);
+        var img_tar = target_ctx.getImageData(x, y, SIZE, SIZE);
+        var min_e;
+        var min_v = distance(img_raw.data, img_tar.data);
+        for (var e of emoji) {
+          // copy a patch
+          ctx.putImageData(img_tar, 0, 0);
+          // draw emoji on it
+          putChar(e);
+          // calculate distance
+          var img_new = ctx.getImageData(0, 0, SIZE, SIZE);
+          var d = distance(img_raw.data, img_new.data);
+          if (d < min_v) {
+            min_v = d;
+            min_e = img_new;
+          }
+        }
+        console.log(min_v);
+        if (min_e) target_ctx.putImageData(min_e, x, y);
+      // }
+      if (!stop) setTimeout(emojiIt, 10);
+    }
+
+    // emojiColor();
+    $('#file_path')[0].onchange = uploadFile;
+  </script>
+</body>
+
+</html>
